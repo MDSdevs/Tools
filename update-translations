@@ -70,8 +70,6 @@ for file in $(find . -name "*.apk"); do
 	cd "$base/$(dirname $file)"
 
 	apktool d -f -t "$ROM" "$base/$file" > /dev/null
-
-	rm -f "$file"
 done
 
 cd "$base"
