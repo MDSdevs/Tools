@@ -1,0 +1,100 @@
+#!/bin/bash
+
+e() {
+	echo ""
+	echo "$1"
+	echo ""
+}
+
+if [ "$1" == "" ]; then
+	e "ROM file can not be empty"
+	exit 1
+fi
+
+if [ "$2" == "" ]; then
+	e "BRANCH ID can not be empty"
+	exit 1
+fi
+
+ROM="$1"
+BRANCH="$2"
+
+if [ ! -f "$ROM" ]; then
+	e "ROM file $ROM not exists"
+	exit 1
+fi
+
+e "Unzip ROM $ROM"
+
+unzip -q "$ROM" -d ROM
+
+cd ROM
+
+if [ ! -f system.img ]; then
+	if [ ! -f system.new.dat ]; then
+		e "NOT exists system image file system.new.dat or system.img"
+		exit 1
+	fi
+
+	e "Migrate DAT format to IMG"
+	sdat2img system.transfer.list system.new.dat system.img > /dev/null
+fi
+
+if [ ! -d mount ]; then
+	mkdir mount
+fi
+
+sudo mount -t ext4 -o loop system.img mount
+
+if [ -d system ]; then
+	rm -rf system
+fi
+
+e "Create a system copy"
+
+cp -r mount system
+
+sudo umount mount
+
+cd system
+
+e "Add framework-res to apktool"
+
+apktool if -t "$ROM" framework/framework-res.apk
+
+base="$(pwd)"
+
+e "Scan for APK files"
+
+for file in $(find . -name "*.apk"); do
+	cd "$base/$(dirname $file)"
+
+	apktool d -f -t "$ROM" "$base/$file" > /dev/null
+
+	rm -f "$file"
+done
+
+cd "$base"
+
+git="$(realpath "$base/../../GIT")"
+
+e "Add base files to GIT"
+
+for folder in $(find . -type d -wholename "*res/values*"); do
+	cp --parents -pr "$folder" "$git/base"
+done
+
+for lang in es; do
+	e "Add base files to GIT $lang"
+
+	for folder in $(find . -type d -wholename "*res/values"); do
+		cp --parents -pr "$folder" "$git/$lang/"
+		mv -f "$git/$lang/$folder" "$git/$lang/$folder""-es"
+	done
+
+	for folder in $(find . -type d -wholename "*res/values-$lang"); do
+		cp --parents -pr "$folder" "$git/$lang"
+	done
+done
+
+exit 0
