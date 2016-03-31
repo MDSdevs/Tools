@@ -95,6 +95,7 @@ for file in $(find . -name "*.apk"); do
 
 	cd "$BASE/$(dirname $file)"
 
+	continue
 	apktool d -f -t "$ROM" "$BASE/$file" > /dev/null
 done
 
@@ -111,6 +112,7 @@ e "Add base files to GIT"
 cd "$BASE"
 
 for folder in $(find . -type d -wholename "*res/values*"); do
+	continue
 	cp --parents -pr "$folder" "$GIT/Lenovo-K3-Note-VibeUI-Translations-Base"
 done
 
@@ -130,6 +132,7 @@ for lang in es; do
 	cd "$BASE"
 
 	for folder in $(find . -type d -wholename "*res/values"); do
+		continue
 		cp --parents -pr "$folder" "$TARGET/"
 		mv -f "$TARGET/$folder" "$TARGET/$folder-$lang"
 	done

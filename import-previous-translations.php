@@ -9,9 +9,10 @@ if (!is_dir($GIT)) {
     die('GIT path '.$GIT.' does not exists');
 }
 
-require __DIR__.'/helpers.php';
+require __DIR__.'/php/helpers.php';
 
 $BRANCH = $argv[2];
 $PREVIOUS = $argv[3];
 
-Helpers::getTranslationsFromBranches($GIT, $PREVIOUS, $BRANCH);
+
+helpers::setTranslations(helpers::getTranslationsFromBranches($GIT, $PREVIOUS, $BRANCH));
