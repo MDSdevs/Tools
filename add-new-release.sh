@@ -123,7 +123,7 @@ for lang in es; do
 	git add .
 	git commit -am "Added default files to GIT $lang"
 
-	#php "$SCRIPTS/import-previous-translations.php" "$TARGET" "$BRANCH" "$PREVIOUS"
+	php "$SCRIPTS/import-previous-translations.php" "$TARGET" "$BRANCH" "$PREVIOUS"
 
 	git commit -am "Import previous $lang translations from $PREVIOUS"
 done
