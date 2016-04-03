@@ -6,32 +6,16 @@ e() {
 	echo ""
 }
 
-if [ "$1" == "" ]; then
-	e "ROM file can not be empty"
+if [ "$1" == "" ] || [ "$2" == "" ] || [ "$3" == "" ] || [ "$4" == "" ]; then
+	e 'USAGE: '"$0"' "ROM_ZIP" "GIT_FOLDER" "NEW_BRANCH" "PREVIOUS_BRANCH"'
 	exit 1
 fi
-
-if [ "$2" == "" ]; then
-	e "GIT FOLDER can not be empty"
-	exit 1
-fi
-
-if [ "$3" == "" ]; then
-	e "LAST BRANCH ID can not be empty"
-	exit 1
-fi
-
-if [ "$4" == "" ]; then
-	e "PREVIOUS BRANCH ID can not be empty"
-	exit 1
-fi
-
 
 ROM="$1"
 GIT="$2"
 BRANCH="$3"
 PREVIOUS="$4"
-HERE="$(dirname "$(realpath "$0")")"
+SCRIPTS="$(dirname "$(realpath "$0")")"
 
 if [ ! -f "$ROM" ]; then
 	e "ROM file $ROM not exists"
@@ -95,7 +79,6 @@ for file in $(find . -name "*.apk"); do
 
 	cd "$BASE/$(dirname $file)"
 
-	continue
 	apktool d -f -t "$ROM" "$BASE/$file" > /dev/null
 done
 
@@ -112,7 +95,6 @@ e "Add base files to GIT"
 cd "$BASE"
 
 for folder in $(find . -type d -wholename "*res/values*"); do
-	continue
 	cp --parents -pr "$folder" "$GIT/Lenovo-K3-Note-VibeUI-Translations-Base"
 done
 
@@ -132,7 +114,6 @@ for lang in es; do
 	cd "$BASE"
 
 	for folder in $(find . -type d -wholename "*res/values"); do
-		continue
 		cp --parents -pr "$folder" "$TARGET/"
 		mv -f "$TARGET/$folder" "$TARGET/$folder-$lang"
 	done
@@ -142,7 +123,7 @@ for lang in es; do
 	git add .
 	git commit -am "Added default files to GIT $lang"
 
-	php "$HERE/import-previous-translations.php" "$TARGET" "$BRANCH" "$PREVIOUS"
+	#php "$SCRIPTS/import-previous-translations.php" "$TARGET" "$BRANCH" "$PREVIOUS"
 
 	git commit -am "Import previous $lang translations from $PREVIOUS"
 done
