@@ -6,15 +6,47 @@ e() {
 	echo ""
 }
 
+branch() {
+	if [ ! -d ".git" ]; then
+		e "This folder $(pwd) is not a git repository"
+		exit 1
+	fi
+
+	git reset --hard
+
+	if [ "$(exists "$(pwd)" "$1")" == "true" ]; then
+		git clean -d -fx ""
+		git checkout -f "$1"
+		git pull origin "$1"
+	else
+		git checkout --orphan "$1"
+		git rm -rf .
+	fi
+}
+
+exists() {
+	BACK="$(pwd)"
+
+	if [ "$(cd "$1" && git branch -a | grep "$2")" != "" ]; then
+		echo "true"
+	else
+		echo "false"
+	fi
+
+	cd "$BACK"
+}
+
 if [ "$1" == "" ] || [ "$2" == "" ] || [ "$3" == "" ] || [ "$4" == "" ]; then
 	e 'USAGE: '"$0"' "ROM_ZIP" "GIT_FOLDER" "NEW_BRANCH" "PREVIOUS_BRANCH"'
 	exit 1
 fi
 
 ROM="$1"
+FILENAME="$(basename $ROM)"
 GIT="$2"
 BRANCH="$3"
 PREVIOUS="$4"
+PREFIX="Lenovo-K3-Note-VibeUI-Translations-"
 SCRIPTS="$(dirname "$(realpath "$0")")"
 
 if [ ! -f "$ROM" ]; then
@@ -69,61 +101,101 @@ BASE="$(pwd)"
 
 e "Add framework-res to apktool"
 
-# https://github.com/iBotPeaches/Apktool
-apktool if -t "$ROM" framework/framework-res.apk
+if [ -f "framework/framework-res.apk" ]; then
+	# https://github.com/iBotPeaches/Apktool
+	apktool if -t "$ROM" "framework/framework-res.apk"
+fi
 
 e "Scan for APK files"
 
-for file in $(find . -name "*.apk"); do
-	echo "Decompile $file"
+while [ true ]; do
+	apks=""
 
-	cd "$BASE/$(dirname $file)"
+	for file in $(find . -type f -name "*.apk"); do
+		if [ -d "$BASE/$file" ]; then
+			continue
+		fi
 
-	apktool d -f -t "$ROM" "$BASE/$file" > /dev/null
+		echo "Decompile $file"
+
+		mv "$BASE/$file" "$BASE/$file.backup"
+
+		apktool d -f -t "$ROM" "$BASE/$file.backup" -o "$BASE/$file" > /dev/null
+
+		apks="$file"
+	done
+
+	if [ "$apks" == "" ]; then
+		break;
+	fi
 done
 
 e "Reset Base GIT repository"
 
-cd "$GIT/Lenovo-K3-Note-VibeUI-Translations-Base"
+cd "$GIT/$PREFIX""Base"
 
-git reset --hard
-
-git checkout -b "$BRANCH"
+branch "$BRANCH"
 
 e "Add base files to GIT"
 
 cd "$BASE"
 
 for folder in $(find . -type d -wholename "*res/values*"); do
-	cp --parents -pr "$folder" "$GIT/Lenovo-K3-Note-VibeUI-Translations-Base"
+	cp --parents -pr "$folder" "$GIT/$PREFIX""Base"
 done
 
+cd "$GIT/$PREFIX""Base"
+
+e "Fix permissions"
+
+sudo find . -type d -exec chmod 0755 {} \;
+sudo find . -type f -exec chmod 0644 {} \;
+
+sudo find . -exec chmod -t {} \;
+
+git add .
+git commit -am "Added files to branch $BRANCH from file $FILENAME"
+
 for lang in es; do
+	TARGET="$GIT/$PREFIX""$lang"
+
+	cd "$TARGET"
+
+	e "Fix permissions"
+
+	sudo find . -type d -exec chmod 0755 {} \;
+	sudo find . -type f -exec chmod 0644 {} \;
+
+	sudo find . -exec chmod -t {} \;
+
 	e "Reset $lang GIT repository"
 
-	TARGET="$GIT/Lenovo-K3-Note-VibeUI-Translations-$lang"
-
-	cd $TARGET
-
-	git reset --hard
-
-	git checkout -b "$BRANCH"
+	branch "$BRANCH"
 
 	e "Add base files to GIT $lang"
 
 	cd "$BASE"
 
 	for folder in $(find . -type d -wholename "*res/values"); do
+		if [ -d "$TARGET/$folder" ]; then
+			rm -rf "$TARGET/$folder"
+		fi
+
+		if [ -d "$TARGET/$folder-$lang" ]; then
+			rm -rf "$TARGET/$folder-$lang"
+		fi
+
 		cp --parents -pr "$folder" "$TARGET/"
-		mv -f "$TARGET/$folder" "$TARGET/$folder-$lang"
+
+		mv "$TARGET/$folder" "$TARGET/$folder-$lang"
 	done
 
 	cd "$TARGET"
 
 	git add .
-	git commit -am "Added default files to GIT $lang"
+	git commit -am "Added default files to GIT $lang from file $FILENAME"
 
-	php "$SCRIPTS/import-previous-translations.php" "$TARGET" "$BRANCH" "$PREVIOUS"
+	php "$SCRIPTS/import-previous-translations.php" "$GIT/$PREFIX" "$lang" "$BRANCH" "$PREVIOUS"
 
 	git commit -am "Import previous $lang translations from $PREVIOUS"
 done

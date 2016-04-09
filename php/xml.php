@@ -1,6 +1,17 @@
 <?php
 class xml
 {
+    public static function getDOMDocument()
+    {
+        $xml = new DOMDocument('1.0', 'utf-8');
+        $xml->formatOutput = true;
+        $xml->recover = true;
+        $xml->preserveWhiteSpace = true;
+        $xml->substituteEntities = false;
+
+        return $xml;
+    }
+
     public static function fromFile($file)
     {
         return static::fromString(file_get_contents($file));
@@ -8,7 +19,8 @@ class xml
 
     public static function fromString($string)
     {
-        $xml = new DOMDocument();
+        $xml = static::getDOMDocument();
+
         $xml->loadXML($string);
 
         return array(
@@ -18,8 +30,7 @@ class xml
 
     public static function toString(array $array)
     {
-        $xml = new DomDocument('1.0', 'utf-8');
-        $xml->formatOutput = true;
+        $xml = static::getDOMDocument();
 
         $xml->appendChild(static::arrayToNode($xml, 'resources', $array['resources']));
 
@@ -42,45 +53,49 @@ class xml
 
         $output = array();
 
-        for ($i = 0, $m = $node->childNodes->length; $i < $m; $i++) {
-            $child = $node->childNodes->item($i);
-            $v = static::nodeToArray($child);
+        if (in_array((string)$node->tagName, array('string', 'item'), true)) {
+            $output['@value'] = '';
 
-            if (isset($child->tagName)) {
-                $t = $child->tagName;
+            for ($i = 0, $m = $node->childNodes->length; $i < $m; $i++) {
+                $output['@value'] .= static::decodeString($node->ownerDocument->saveXml($node->childNodes->item($i)));
+            }
+        } else {
+            for ($i = 0, $m = $node->childNodes->length; $i < $m; $i++) {
+                $child = $node->childNodes->item($i);
+                $v = static::nodeToArray($child);
 
-                if (!isset($output[$t])) {
-                    $output[$t] = array();
+                if (isset($child->tagName)) {
+                    $t = $child->tagName;
+
+                    if (!isset($output[$t])) {
+                        $output[$t] = array();
+                    }
+
+                    $output[$t][] = $v;
+                } elseif ($v !== '') {
+                    if (!isset($output['@value'])) {
+                        $output['@value'] = '';
+                    }
+
+                    $output['@value'] .= $v;
                 }
-
-                $output[$t][] = $v;
-            } elseif ($v !== '') {
-                $output['@value'] = $v;
             }
         }
 
-        if ($output && is_array($output)) {
-            foreach ($output as $t => $v) {
-                if (is_array($v) && (count($v) === 1)) {
-                    $output[$t] = $v[0];
-                }
-            }
-        } elseif (empty($output)) {
+        if (empty($output)) {
             $output = '';
         }
 
+        if (!is_array($output)) {
+            $output = array('@value' => $output);
+        }
+
         if ($node->attributes->length) {
-            $a = array();
+            $output['@attributes'] = array();
 
             foreach ($node->attributes as $name => $node) {
-                $a[$name] = (string)$node->value;
+                $output['@attributes'][$name] = (string)$node->value;
             }
-
-            if (!is_array($output)) {
-                $output = array('@value' => $output);
-            }
-
-            $output['@attributes'] = $a;
         }
 
         return $output;
@@ -90,60 +105,71 @@ class xml
     {
         $node = $xml->createElement($name);
 
-        if (is_array($array)) {
-            if (isset($array['@attributes'])) {
-                foreach ($array['@attributes'] as $key => $value) {
-                    if (!static::isValidTagName($key)) {
-                        throw new Exception('[Array2XML] Illegal character in attribute name. attribute: ' . $key . ' in node: ' . $node_name);
-                    }
+        if (!is_array($array)) {
+            return static::nodeValue($node, $array);
+        }
 
-                    $node->setAttribute($key, static::bool2str($value));
-                }
-
-                unset($array['@attributes']);
-            }
-
-            if (isset($array['@value'])) {
-                $node->appendChild($xml->createTextNode(static::bool2str($array['@value'])));
-
-                return $node;
-            }
-
-            if (isset($array['@cdata'])) {
-                $node->appendChild($xml->createCDATASection(static::bool2str($array['@cdata'])));
-
-                return $node;
-            }
-
-            if (isset($array['@xml'])) {
-                $node->appendChild($xml->createDocumentFragment()->appendXML($array['@xml']));
-
-                return $node;
-            }
-
-            // recurse to get the node for that key
-            foreach ($array as $key => $value) {
+        if (isset($array['@attributes'])) {
+            foreach ($array['@attributes'] as $key => $value) {
                 if (!static::isValidTagName($key)) {
-                    throw new Exception('[Array2XML] Illegal character in tag name. tag: ' . $key . ' in node: ' . $node_name);
+                    throw new Exception('[Array2XML] Illegal character in attribute name. attribute: '.$key.' in node: '.$value);
                 }
 
-                if (is_array($value) && is_numeric(key($value))) {
-                    foreach ($value as $v) {
-                        $node->appendChild(static::arrayToNode($xml, $key, $v));
-                    }
-                } else {
-                    $node->appendChild(static::arrayToNode($xml, $key, $value));
-                }
-
-                unset($array[$key]);
+                $node->setAttribute($key, static::bool2str($value));
             }
         }
 
-        if (!is_array($array)) {
-            $node->appendChild($xml->createTextNode(static::bool2str($array)));
+        if (isset($array['@cdata'])) {
+            $node->appendChild($xml->createCDATASection(static::bool2str($array['@cdata'])));
+        }
+
+        if (isset($array['@xml'])) {
+            $node->appendChild($xml->createDocumentFragment()->appendXML($array['@xml']));
+        }
+
+        if (isset($array['@value'])) {
+            $node = static::nodeValue($node, $array['@value']);
+        }
+
+        foreach ($array as $key => $value) {
+            if (strstr($key, '@')) {
+                continue;
+            }
+
+            if (!static::isValidTagName($key)) {
+                var_dump('[Array2XML] Illegal character in tag name. tag: '.$key.' in node: '.$value);
+                var_dump($name, $array);
+                continue;
+            }
+
+            if (is_array($value) && is_numeric(key($value))) {
+                foreach ($value as $v) {
+                    $node->appendChild(static::arrayToNode($xml, $key, $v));
+                }
+            } else {
+                $node->appendChild(static::arrayToNode($xml, $key, $value));
+            }
         }
 
         return $node;
+    }
+
+    private static function nodeValue($node, $value)
+    {
+        $node->appendChild($node->ownerDocument->createTextNode(static::decodeString(static::bool2str($value))));
+
+        return $node;
+    }
+
+    private static function decodeString($string)
+    {
+        $decode = htmlspecialchars_decode($string, ENT_HTML401);
+
+        while ($string !== $decode) {
+            $decode = htmlspecialchars_decode($string = $decode, ENT_HTML401);
+        }
+
+        return $decode;
     }
 
     private static function bool2str($v)
