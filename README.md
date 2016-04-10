@@ -1,4 +1,18 @@
-# BASH
+# USO
+
+./add-new-release.sh ROM_ZIP.zip GIT_BASE_DIR NEW_ROM_RELEASE PREVIOUS_ROM_RELEASE
+
+## EJEMPLO
+
+./add-new-release.sh VIBEUI_V3.1_1614_LEMONADE.zip "/home/usuario/www/git/MovilesDualSimLTT" "V3.1_1614_5.294.1_ST" "V3.5_1610_3.40.1_DEV"
+
+## COMENTARIO
+
+El directorio /home/usuario/www/git/MovilesDualSimLTT debe contener los dos repositorios de traducciones, el Base (MovilesDualSimLTT-Lenovo-K3-Note-VibeUI-Translations-Base) y el del idioma correspondiente (MovilesDualSimLTT-Lenovo-K3-Note-VibeUI-Translations-es).
+
+# PROCESO
+
+## BASH
 
 1.  Extraer ROM
 2.  Decompilar APK
@@ -7,7 +21,7 @@
 5.  Por cada idioma copiamos los directorios res/values y lo renombramos como res/values-IDIOMA
 6.  Esta traducción base la añadimos al repositorio de GIT-IDIOMA
 
-# PHP
+## PHP
 
 7.  Nos situamos en el último branch, que contiene las traducciones originales de la ROM
 7.  Se buscan todos los ficheros XML en el directorio de GIT-IDIOMA (archivos originales que vienen de GIT-BASE)
